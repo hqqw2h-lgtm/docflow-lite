@@ -22,6 +22,7 @@ export interface SchemaSpace {
   description: string;
   input_file_types: FileType[];
   normalizer_overrides: Record<string, string>;
+  schema_info: unknown;
   defaults: SchemaSpaceDefaults;
   status: SchemaSpaceStatus;
   created_at: string;
@@ -33,6 +34,7 @@ export interface SchemaSpaceCreate {
   name: string;
   description?: string;
   input_file_types: FileType[];
+  schema_info?: unknown;
   defaults?: Partial<SchemaSpaceDefaults>;
 }
 

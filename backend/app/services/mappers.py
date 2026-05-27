@@ -66,6 +66,7 @@ def schema_space_from_record(record: SchemaSpaceRecord) -> SchemaSpace:
         defaults = SchemaSpaceDefaults(**defaults_raw)
     except (TypeError, ValueError):
         defaults = SchemaSpaceDefaults()
+    schema_info_raw = _decode(getattr(record, "schema_info", "") or "", {"outputType": "json", "children": []})
     return SchemaSpace(
         id=record.id,
         tenant_id=record.tenant_id,
@@ -73,6 +74,7 @@ def schema_space_from_record(record: SchemaSpaceRecord) -> SchemaSpace:
         description=record.description,
         input_file_types=file_types,
         normalizer_overrides=overrides,
+        schema_info=schema_info_raw,
         defaults=defaults,
         status=SchemaSpaceStatus(record.status),
         created_at=_parse_dt(record.created_at) or datetime.utcnow(),

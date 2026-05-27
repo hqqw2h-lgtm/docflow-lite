@@ -281,6 +281,8 @@ def init_db() -> None:
     engine = get_engine()
     Base.metadata.create_all(engine)
     _ensure_column(engine, "schema_space_versions", "last_optimization", "TEXT NOT NULL DEFAULT ''")
+    _ensure_column(engine, "schema_spaces", "schema_info", "TEXT NOT NULL DEFAULT '{\"outputType\":\"json\",\"children\":[]}'")
+
     with get_session() as session:
         if session.get(TenantRecord, DEFAULT_TENANT_ID) is None:
             now = utc_now()

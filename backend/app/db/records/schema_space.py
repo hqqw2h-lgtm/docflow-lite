@@ -21,6 +21,7 @@ class SchemaSpaceRecord(Base):
     input_file_types: Mapped[str] = mapped_column(nullable=False, default='["pdf"]', server_default='["pdf"]')
     normalizer_overrides: Mapped[str] = mapped_column(nullable=False, default="{}", server_default="{}")
     defaults: Mapped[str] = mapped_column(nullable=False, default="{}", server_default="{}")
+    schema_info: Mapped[str] = mapped_column(nullable=False, default='{"outputType":"json","children":[]}', server_default='{"outputType":"json","children":[]}')
     status: Mapped[str] = mapped_column(nullable=False, default="draft", server_default="draft")
     legacy_workspace_id: Mapped[str] = mapped_column(nullable=False, default="", server_default="")
     created_at: Mapped[str] = mapped_column(nullable=False)

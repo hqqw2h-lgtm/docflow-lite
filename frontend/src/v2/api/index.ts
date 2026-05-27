@@ -92,6 +92,9 @@ export const api = {
   getInvocation: (id: string) => http.get<Invocation>(`/api/invocations/${id}`),
   getInvocationTrace: (id: string) => http.get<Trace>(`/api/invocations/${id}/trace`),
 
+  replayInvocation: (invocationId: string) =>
+    http.post<Invocation>(`/api/admin/invocations/${invocationId}/replay`),
+
   adminListInvocations: (params: {
     space_id?: string;
     version_id?: string;

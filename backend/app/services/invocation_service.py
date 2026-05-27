@@ -141,7 +141,9 @@ class InvocationService:
             stored_path = UPLOAD_DIR / f"{new_id()}-{file_name}"
             stored_path.write_bytes(content)
 
-            schema_info = version.schema_info or {"outputType": "json", "children": []}
+            schema_info = version.schema_info
+            if not schema_info or schema_info == {"outputType": "json", "children": []}:
+                schema_info = space.schema_info or {"outputType": "json", "children": []}
 
             invocation_id = new_id()
             started_at_str = utc_now()
