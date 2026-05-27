@@ -1,4 +1,4 @@
-import { EditOutlined, PlusOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
 import {
   Alert, Button, Card, Descriptions, Empty, Form, Input, message, Modal, Space, Spin, Table, Tabs, Tag, Typography,
 } from 'antd';
@@ -23,6 +23,8 @@ export function SchemaSpaceDetailPage() {
   const [newVerOpen, setNewVerOpen] = useState(false);
   const [newVerForm] = Form.useForm();
   const [defaultsForm] = Form.useForm();
+  const [schemaEditOpen, setSchemaEditOpen] = useState(false);
+  const [schemaText, setSchemaText] = useState('');
 
   const reload = () => {
     setLoading(true);
@@ -41,6 +43,18 @@ export function SchemaSpaceDetailPage() {
   }, [spaceId]);
 
   if (loading || !space) return <Spin />;
+
+  const onSaveSchema = async () => {
+    let parsed: unknown;
+    try { parsed = JSON.parse(schemaText); }
+    catch { message.error('Invalid JSON'); return; }
+    try {
+      await api.updateSpace(spaceId, { schema_info: parsed });
+      message.success('Schema saved');
+      setSchemaEditOpen(false);
+      reload();
+    } catch (e) { message.error((e as Error).message); }
+  };
 
   const onCreateVersion = async () => {
     const values = await newVerForm.validateFields();
@@ -248,6 +262,10 @@ export function SchemaSpaceDetailPage() {
             ]}
           />
         </Form>
+      </Modal>
+
+      <Modal title="Edit Expected Output Schema" open={schemaEditOpen} onOk={onSaveSchema} onCancel={() => setSchemaEditOpen(false)} width={720} okText="Save">
+        <Input.TextArea rows={14} value={schemaText} onChange={(e) => setSchemaText(e.target.value)} style={{ fontFamily: 'monospace', fontSize: 13 }} />
       </Modal>
     </Space>
   );
