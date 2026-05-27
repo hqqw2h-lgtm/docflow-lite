@@ -1,4 +1,4 @@
-import { PlusOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
+import { EditOutlined, PlusOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
 import {
   Alert, Button, Card, Descriptions, Empty, Form, Input, message, Modal, Space, Spin, Table, Tabs, Tag, Typography,
 } from 'antd';
@@ -23,8 +23,6 @@ export function SchemaSpaceDetailPage() {
   const [newVerOpen, setNewVerOpen] = useState(false);
   const [newVerForm] = Form.useForm();
   const [defaultsForm] = Form.useForm();
-  const [schemaEditOpen, setSchemaEditOpen] = useState(false);
-  const [schemaText, setSchemaText] = useState('');
 
   const reload = () => {
     setLoading(true);
