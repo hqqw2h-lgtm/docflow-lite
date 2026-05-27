@@ -72,6 +72,7 @@ class SchemaSpaceService:
                 description=payload.description,
                 input_file_types=encode_json([ft.value for ft in payload.input_file_types]),
                 normalizer_overrides=encode_json(payload.normalizer_overrides),
+                schema_info=encode_json(payload.schema_info),
                 defaults=encode_json(payload.defaults.model_dump()),
                 status=SchemaSpaceStatus.DRAFT.value,
                 created_at=now,
