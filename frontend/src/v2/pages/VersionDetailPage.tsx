@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import type {
-  OptimizationReport, Sample, SchemaSpace, SchemaSpaceVersion,
+  Invocation, OptimizationReport, Sample, SchemaSpace, SchemaSpaceVersion,
 } from '../api/types';
 import { JsonView } from '../components/JsonView';
 

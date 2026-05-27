@@ -1,7 +1,13 @@
-"""Sample upload, confirm, reject. Samples belong to a draft version."""
+"""Sample upload, confirm, reject, delete. Samples belong to a draft version.
+
+When a sample is uploaded, the extraction pipeline runs automatically so the
+user can immediately see the model_output and decide whether to confirm or
+correct it.
+"""
 from __future__ import annotations
 
 import hashlib
+import json as _json
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +17,7 @@ from ..database import UPLOAD_DIR, encode_json, get_session, new_id, utc_now
 from ..db.records import SampleRecord
 from ..domain import (
     FileType,
+    InvocationSource,
     Sample,
     SampleStatus,
     VersionStatus,
@@ -57,9 +64,6 @@ class SampleService:
             space = self.space_repo.get(session, version.schema_space_id)
             if space is None:
                 raise HTTPException(status_code=404, detail="SchemaSpace not found")
-            allowed_types = [FileType(t) for t in (encode_json([]) and [] or [])] if False else None
-            # Decode allowed types from JSON column
-            import json as _json
             try:
                 raw_types = _json.loads(space.input_file_types or "[]")
             except _json.JSONDecodeError:
@@ -104,15 +108,92 @@ class SampleService:
             )
             self.sample_repo.add(session, record)
             session.flush()
-            # store path in correction_notes metadata-free; just rely on file_name for retrieval through tracing
             record.correction_notes = encode_json([{"stored_path": str(target)}])
-            return sample_from_record(record)
+            sample_id = record.id
+            space_id = version.schema_space_id
+
+        # Run extraction pipeline automatically on upload
+        await self._run_extraction(sample_id, space_id, version_id, target, file_name, document_context, content)
+
+        with get_session() as session:
+            record = self.sample_repo.get(session, sample_id)
+            return sample_from_record(record)  # type: ignore[arg-type]
+
+    async def _run_extraction(
+        self,
+        sample_id: str,
+        space_id: str,
+        version_id: str,
+        stored_path: Path,
+        file_name: str,
+        document_context: str,
+        content: bytes,
+    ) -> None:
+        """Run the invocation pipeline and store model_output on the sample."""
+        from io import BytesIO
+        from ..services.invocation_service import InvocationService
+
+        class _FakeUploadFile:
+            """Minimal UploadFile-compatible object for internal pipeline call."""
+            def __init__(self, name: str, data: bytes, content_type: str):
+                self.filename = name
+                self.content_type = content_type
+                self._data = data
+
+            async def read(self) -> bytes:
+                return self._data
+
+        svc = InvocationService()
+        try:
+            fake_file = _FakeUploadFile(file_name, content, "application/octet-stream")
+            invocation = await svc.invoke_upload(
+                version_id=version_id,
+                file=fake_file,  # type: ignore[arg-type]
+                document_context=document_context,
+                source=InvocationSource.SAMPLE,
+            )
+            # Update sample with model output and invocation link
+            with get_session() as session:
+                record = self.sample_repo.get(session, sample_id)
+                if record is not None:
+                    record.model_output = encode_json(invocation.final_output)
+                    record.invocation_id = invocation.id
+                    if invocation.validation_issues:
+                        record.status = SampleStatus.NEEDS_REVIEW.value
+                    else:
+                        record.status = SampleStatus.EXTRACTED.value
+                    record.updated_at = utc_now()
+        except Exception:
+            # Extraction failure should not block sample upload
+            with get_session() as session:
+                record = self.sample_repo.get(session, sample_id)
+                if record is not None:
+                    record.status = SampleStatus.NEEDS_REVIEW.value
+                    record.updated_at = utc_now()
 
     def confirm(self, sample_id: str, corrected_output: Any | None) -> Sample:
         return self._set_status(sample_id, SampleStatus.CONFIRMED, corrected_output)
 
     def reject(self, sample_id: str) -> Sample:
         return self._set_status(sample_id, SampleStatus.REJECTED, None)
+
+    def delete(self, sample_id: str) -> None:
+        """Delete a sample from a draft version."""
+        with get_session() as session:
+            record = self.sample_repo.get(session, sample_id)
+            if record is None:
+                raise HTTPException(status_code=404, detail="Sample not found")
+            version = self.version_repo.get(session, record.version_id)
+            if version is not None and version.status != VersionStatus.DRAFT.value:
+                raise HTTPException(status_code=409, detail="Can only delete samples from draft versions.")
+            # Remove stored file
+            notes = _json.loads(record.correction_notes or "[]")
+            for note in notes:
+                if isinstance(note, dict) and "stored_path" in note:
+                    p = Path(note["stored_path"])
+                    if p.exists():
+                        p.unlink(missing_ok=True)
+            session.delete(record)
 
     def _set_status(self, sample_id: str, status: SampleStatus, corrected_output: Any | None) -> Sample:
         with get_session() as session:

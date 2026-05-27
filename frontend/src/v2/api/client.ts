@@ -43,4 +43,7 @@ export const http = {
   upload<T>(path: string, form: FormData): Promise<T> {
     return fetch(`${API_BASE}${path}`, { method: 'POST', body: form }).then(unwrap) as Promise<T>;
   },
+  del<T>(path: string): Promise<T> {
+    return fetch(`${API_BASE}${path}`, { method: 'DELETE' }).then(unwrap) as Promise<T>;
+  },
 };
