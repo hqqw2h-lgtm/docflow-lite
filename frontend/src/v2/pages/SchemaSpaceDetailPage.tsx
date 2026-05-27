@@ -1,4 +1,4 @@
-import { PlusOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
+import { EditOutlined, PlusOutlined, ReloadOutlined, SettingOutlined } from '@ant-design/icons';
 import {
   Alert, Button, Card, Descriptions, Empty, Form, Input, message, Modal, Space, Spin, Table, Tabs, Tag, Typography,
 } from 'antd';
@@ -142,6 +142,16 @@ export function SchemaSpaceDetailPage() {
               : Object.entries(space.normalizer_overrides).map(([k, v]) => <Tag key={k}>{k}: {v}</Tag>)}
           </Descriptions.Item>
         </Descriptions>
+      </Card>
+
+      <Card
+        title={<Typography.Title level={5} style={{ margin: 0 }}>Expected Output Schema</Typography.Title>}
+        extra={<Button icon={<EditOutlined />} onClick={() => { setSchemaText(JSON.stringify(space.schema_info ?? {outputType:'json',children:[]}, null, 2)); setSchemaEditOpen(true); }}>Edit schema</Button>}
+      >
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>Define the target JSON structure. All versions inherit this schema.</Typography.Paragraph>
+        {space.schema_info && JSON.stringify(space.schema_info) !== '{"outputType":"json","children":[]}'
+          ? <JsonView value={space.schema_info} maxHeight={300} />
+          : <Empty description="No schema defined yet. Click Edit schema." />}
       </Card>
 
       <Card
