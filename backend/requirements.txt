@@ -1,0 +1,13 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+python-multipart==0.0.20
+httpx==0.28.1
+pypdf==5.1.0
+SQLAlchemy==2.0.36
+
+# Optional: high-quality PDF → markdown via deep-learning. Heavy dependency
+# (pulls torch + several GB of model weights on first run). If absent,
+# PdfNormalizer transparently falls back to pypdf text extraction.
+# Install with:  pip install marker-pdf
+# marker-pdf>=1.0.0
