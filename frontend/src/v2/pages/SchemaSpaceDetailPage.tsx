@@ -23,6 +23,8 @@ export function SchemaSpaceDetailPage() {
   const [newVerOpen, setNewVerOpen] = useState(false);
   const [newVerForm] = Form.useForm();
   const [defaultsForm] = Form.useForm();
+  const [schemaEditOpen, setSchemaEditOpen] = useState(false);
+  const [schemaText, setSchemaText] = useState('');
 
   const reload = () => {
     setLoading(true);

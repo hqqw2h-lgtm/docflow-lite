@@ -40,6 +40,7 @@ class SchemaSpaceCreate(BaseModel):
             "(e.g. 'pdf.marker', 'pdf.pypdf'). Empty map = use defaults."
         ),
     )
+    schema_info: dict[str, Any] | list[dict[str, Any]] = Field(default_factory=lambda: {"outputType": "json", "children": []})
     defaults: SchemaSpaceDefaults = Field(default_factory=SchemaSpaceDefaults)
 
     @field_validator("name")
@@ -56,6 +57,7 @@ class SchemaSpaceUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=1000)
     input_file_types: list[FileType] | None = None
     normalizer_overrides: dict[str, str] | None = None
+    schema_info: dict[str, Any] | list[dict[str, Any]] | None = None
     defaults: SchemaSpaceDefaults | None = None
     status: SchemaSpaceStatus | None = None
 
@@ -67,6 +69,7 @@ class SchemaSpace(BaseModel):
     description: str
     input_file_types: list[FileType]
     normalizer_overrides: dict[str, str] = Field(default_factory=dict)
+    schema_info: dict[str, Any] | list[dict[str, Any]] = Field(default_factory=lambda: {"outputType": "json", "children": []})
     defaults: SchemaSpaceDefaults = Field(default_factory=SchemaSpaceDefaults)
     status: SchemaSpaceStatus
     created_at: datetime

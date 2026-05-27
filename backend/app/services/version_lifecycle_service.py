@@ -49,13 +49,21 @@ class VersionLifecycleService:
                 raise HTTPException(status_code=404, detail="SchemaSpace not found")
             now = utc_now()
             number = self.version_repo.next_version_number(session, payload.schema_space_id)
+            # Inherit schema_info from SchemaSpace if not explicitly provided
+            import json as _json
+            schema_info = payload.schema_info
+            default_empty = {"outputType": "json", "children": []}
+            if schema_info == default_empty:
+                space_schema = _json.loads(getattr(space, "schema_info", "") or '{"outputType":"json","children":[]}')
+                if space_schema and space_schema != default_empty:
+                    schema_info = space_schema
             record = SchemaSpaceVersionRecord(
                 id=new_id(),
                 schema_space_id=payload.schema_space_id,
                 version=number,
                 name=payload.name or f"v{number}",
                 status=VersionStatus.DRAFT.value,
-                schema_info=encode_json(payload.schema_info),
+                schema_info=encode_json(schema_info),
                 processing_policy=encode_json({}),
                 system_prompt="",
                 extraction_instruction="",

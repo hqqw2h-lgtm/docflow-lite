@@ -141,7 +141,9 @@ class InvocationService:
             stored_path = UPLOAD_DIR / f"{new_id()}-{file_name}"
             stored_path.write_bytes(content)
 
-            schema_info = version.schema_info or {"outputType": "json", "children": []}
+            schema_info = version.schema_info
+            if not schema_info or schema_info == {"outputType": "json", "children": []}:
+                schema_info = space.schema_info or {"outputType": "json", "children": []}
 
             invocation_id = new_id()
             started_at_str = utc_now()
@@ -295,45 +297,6 @@ class InvocationService:
                 started_at=val_start,
                 ended_at=val_end,
             )
-
-            # ----- repair (single retry on validation failure) ----- #
-            if issues and parsed is not None:
-                repair_start = datetime.utcnow()
-                import json as _json
-                repair_prompt = (
-                    f"{effective.system_prompt}\n\n"
-                    f"## Output Contract\n{contract}\n\n"
-                    f"## Extraction Instruction\n{effective.extraction_instruction}\n\n"
-                    f"## Previous Output\n```json\n{_json.dumps(parsed, ensure_ascii=False, indent=2)}\n```\n\n"
-                    f"## Validation Errors\n```json\n{_json.dumps(issues, ensure_ascii=False, indent=2)}\n```\n\n"
-                    f"Fix the validation errors above. Return ONLY the corrected JSON — no explanations.\n"
-                )
-                repair_result = await provider.generate_json(repair_prompt, model_name)
-                repair_end = datetime.utcnow()
-
-                if repair_result.parsed_json is not None:
-                    repaired_issues = validate_output(schema_info, repair_result.parsed_json)
-                    if len(repaired_issues) < len(issues):
-                        parsed = repair_result.parsed_json
-                        issues = repaired_issues
-
-                recorder.record(
-                    TraceSpanType.REPAIR,
-                    status="ok" if not issues else "partial",
-                    input_summary={
-                        "original_issues": len(issues),
-                        "prompt_chars": len(repair_prompt),
-                    },
-                    output_summary={
-                        "remaining_issues": len(issues),
-                        "repair_succeeded": repair_result.parsed_json is not None,
-                        "duration_ms": repair_result.duration_ms,
-                    },
-                    duration_ms=int((repair_end - repair_start).total_seconds() * 1000),
-                    started_at=repair_start,
-                    ended_at=repair_end,
-                    error=repair_result.error,
-                )
 
             # ----- final status ----- #
             if invocation_result.error:

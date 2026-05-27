@@ -33,6 +33,7 @@ export interface SchemaSpaceCreate {
   name: string;
   description?: string;
   input_file_types: FileType[];
+  schema_info?: unknown;
   defaults?: Partial<SchemaSpaceDefaults>;
 }
 

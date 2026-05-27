@@ -98,10 +98,11 @@ class SchemaSpaceService:
                     raise HTTPException(status_code=400, detail="input_file_types must contain at least one entry")
                 record.input_file_types = encode_json([ft.value for ft in payload.input_file_types])
             if payload.normalizer_overrides is not None:
-                # Validate against the (possibly just-updated) input_file_types.
                 current_space = schema_space_from_record(record)
                 self._validate_overrides(payload.normalizer_overrides, current_space.input_file_types)
                 record.normalizer_overrides = encode_json(payload.normalizer_overrides)
+            if payload.schema_info is not None:
+                record.schema_info = encode_json(payload.schema_info)
             if payload.defaults is not None:
                 self._validate_defaults(payload.defaults)
                 record.defaults = encode_json(payload.defaults.model_dump())
