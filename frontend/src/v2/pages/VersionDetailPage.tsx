@@ -3,7 +3,7 @@ import {
 } from '@ant-design/icons';
 import {
   Alert, Button, Card, Descriptions, Divider, Empty, Form, Input, message, Modal, Popconfirm, Space, Spin,
-  Table, Tabs, Tag, Tooltip, Typography, Upload,
+  Progress, Table, Tabs, Tag, Tooltip, Typography, Upload,
 } from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
 import { useEffect, useMemo, useState } from 'react';
@@ -34,6 +34,20 @@ export function VersionDetailPage() {
   const [schemaText, setSchemaText] = useState('');
   const [optReport, setOptReport] = useState<OptimizationReport | null>(null);
   const [optimizing, setOptimizing] = useState(false);
+  const [confirmingSample, setConfirmingSample] = useState<Sample | null>(null);
+  const [confirmText, setConfirmText] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const [editingExpectedSample, setEditingExpectedSample] = useState<Sample | null>(null);
+  const [expectedText, setExpectedText] = useState('');
+  const [savingExpected, setSavingExpected] = useState(false);
+
+  const hasContent = (value: unknown): boolean => {
+    if (value === null || value === undefined) return false;
+    if (typeof value === 'string') return value.trim().length > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === 'object') return Object.keys(value as Record<string, unknown>).length > 0;
+    return true;
+  };
 
   const reload = () => {
     setLoading(true);
@@ -54,6 +68,14 @@ export function VersionDetailPage() {
   };
 
   useEffect(() => { if (spaceId && versionId) reload(); }, [spaceId, versionId]);
+  useEffect(() => {
+    if (!spaceId || !versionId) return;
+    if (!samples.some((s) => s.status === 'uploaded')) return;
+    const timer = window.setInterval(() => {
+      api.listSamples(spaceId, versionId).then(setSamples).catch(() => undefined);
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [spaceId, versionId, samples]);
 
   const acceptHint = useMemo(() => {
     if (!space) return '';
@@ -83,7 +105,7 @@ export function VersionDetailPage() {
         values.expected_output ?? '',
         values.document_context ?? '',
       );
-      message.success('Sample uploaded');
+      message.success('Sample uploaded, analysis started in background');
       setUploadOpen(false);
       uploadForm.resetFields();
       setUploadFile(null);
@@ -139,6 +161,44 @@ export function VersionDetailPage() {
       message.success('Archived');
       reload();
     } catch (e) { message.error((e as Error).message); }
+  };
+
+  const onConfirmWithEdit = async () => {
+    if (!confirmingSample) return;
+    let corrected: unknown;
+    try {
+      corrected = JSON.parse(confirmText);
+    } catch {
+      message.error('Corrected output must be valid JSON');
+      return;
+    }
+    setConfirming(true);
+    try {
+      await api.confirmSample(spaceId, versionId, confirmingSample.id, corrected);
+      message.success('Confirmed with corrected output');
+      setConfirmingSample(null);
+      reload();
+    } catch (e) {
+      message.error((e as Error).message);
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  const onSaveExpected = async () => {
+    if (!editingExpectedSample) return;
+    setSavingExpected(true);
+    try {
+      message.info('Saving expected...');
+      await api.updateSampleExpected(spaceId, versionId, editingExpectedSample.id, expectedText);
+      message.success('Expected output updated');
+      setEditingExpectedSample(null);
+      reload();
+    } catch (e) {
+      message.error((e as Error).message);
+    } finally {
+      setSavingExpected(false);
+    }
   };
 
   const confirmedCount = samples.filter((s) => s.status === 'confirmed').length;
@@ -224,9 +284,24 @@ export function VersionDetailPage() {
                             <Alert type="info" message="Document context" description={s.document_context} />
                           ) : null}
                           <Typography.Text strong>Expected:</Typography.Text>
-                          <JsonView value={s.expected_output} maxHeight={180} />
+                          <div
+                            onDoubleClick={() => {
+                              setEditingExpectedSample(s);
+                              setExpectedText(JSON.stringify(s.expected_output ?? {}, null, 2));
+                            }}
+                            style={{ cursor: 'pointer' }}
+                            title="Double-click to edit expected JSON"
+                          >
+                            <JsonView value={s.expected_output} maxHeight={180} />
+                          </div>
                           <Typography.Text strong>Model output:</Typography.Text>
                           <JsonView value={s.model_output} maxHeight={180} />
+                          {s.corrected_output && Object.keys((s.corrected_output as Record<string, unknown>) ?? {}).length ? (
+                            <>
+                              <Typography.Text strong>Corrected output:</Typography.Text>
+                              <JsonView value={s.corrected_output} maxHeight={180} />
+                            </>
+                          ) : null}
                         </Space>
                       ),
                     }}
@@ -234,17 +309,54 @@ export function VersionDetailPage() {
                       { title: 'File', dataIndex: 'file_name' },
                       { title: 'Type', dataIndex: 'file_type', width: 90, render: (t: string) => <Tag>{t}</Tag> },
                       { title: 'Size', dataIndex: 'size_bytes', width: 110, render: (n: number) => `${n} B` },
-                      { title: 'Status', dataIndex: 'status', width: 130, render: (s: string) => <Tag color={SAMPLE_COLOR[s] ?? 'default'}>{s}</Tag> },
+                      {
+                        title: 'Status',
+                        dataIndex: 'status',
+                        width: 220,
+                        render: (s: string) => s === 'uploaded'
+                          ? (
+                            <Space direction="vertical" size={2} style={{ width: 150 }}>
+                              <Tag color={SAMPLE_COLOR[s] ?? 'default'}>{s}</Tag>
+                              <Progress percent={65} size="small" status="active" showInfo={false} />
+                            </Space>
+                          )
+                          : <Tag color={SAMPLE_COLOR[s] ?? 'default'}>{s}</Tag>,
+                      },
+                      {
+                        title: 'Model output',
+                        render: (_, s) => {
+                          const obj = (s.model_output ?? {}) as Record<string, unknown>;
+                          const keys = Object.keys(obj);
+                          if (!keys.length) return <Typography.Text type="secondary">-</Typography.Text>;
+                          return <Typography.Text>{keys.slice(0, 3).join(', ')}{keys.length > 3 ? '...' : ''}</Typography.Text>;
+                        },
+                      },
                       {
                         title: 'Actions',
-                        width: 220,
+                        width: 240,
                         render: (_, s) => isDraft ? (
                           <Space>
+                            <Button
+                              size="small"
+                              onClick={async () => {
+                                try {
+                                  await api.analyzeSample(spaceId, versionId, s.id);
+                                  message.success('Analysis queued');
+                                  reload();
+                                } catch (e) {
+                                  message.error((e as Error).message);
+                                }
+                              }}
+                              disabled={s.status !== 'uploaded'}
+                            >
+                              Analyze
+                            </Button>
                             <Button size="small" type="primary" icon={<CheckCircleOutlined />}
                               disabled={s.status === 'confirmed'}
-                              onClick={async () => {
-                                try { await api.confirmSample(spaceId, versionId, s.id); message.success('Confirmed'); reload(); }
-                                catch (e) { message.error((e as Error).message); }
+                              onClick={() => {
+                                setConfirmingSample(s);
+                                const baseOutput = hasContent(s.expected_output) ? s.expected_output : s.model_output;
+                                setConfirmText(JSON.stringify(baseOutput ?? {}, null, 2));
                               }}
                             >Confirm</Button>
                             <Button size="small" danger icon={<CloseCircleOutlined />}
@@ -376,6 +488,51 @@ export function VersionDetailPage() {
             <Input.TextArea rows={2} />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title={editingExpectedSample ? `Edit expected: ${editingExpectedSample.file_name}` : 'Edit expected'}
+        open={!!editingExpectedSample}
+        onCancel={() => setEditingExpectedSample(null)}
+        footer={[
+          <Button key="cancel" onClick={() => setEditingExpectedSample(null)} disabled={savingExpected}>
+            Cancel
+          </Button>,
+          <Button key="save" type="primary" loading={savingExpected} onClick={onSaveExpected}>
+            Save expected JSON
+          </Button>,
+        ]}
+        width={760}
+      >
+        <Typography.Paragraph type="secondary">
+          Edit expected JSON used for scoring and sample review baseline.
+        </Typography.Paragraph>
+        <Input.TextArea
+          rows={14}
+          value={expectedText}
+          onChange={(e) => setExpectedText(e.target.value)}
+          style={{ fontFamily: 'monospace' }}
+        />
+      </Modal>
+
+      <Modal
+        title={confirmingSample ? `Confirm sample: ${confirmingSample.file_name}` : 'Confirm sample'}
+        open={!!confirmingSample}
+        onOk={onConfirmWithEdit}
+        onCancel={() => setConfirmingSample(null)}
+        confirmLoading={confirming}
+        okText="Confirm with edited JSON"
+        width={760}
+      >
+        <Typography.Paragraph type="secondary">
+          We preload expected output first; if empty, we use model output. You can edit JSON before confirming.
+        </Typography.Paragraph>
+        <Input.TextArea
+          rows={16}
+          value={confirmText}
+          onChange={(e) => setConfirmText(e.target.value)}
+          style={{ fontFamily: 'monospace' }}
+        />
       </Modal>
 
       <Modal

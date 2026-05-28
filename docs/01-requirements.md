@@ -231,7 +231,7 @@ Prompt Profile 必须可编辑、可保存、可重新生成、可激活。
 31. 可复现的处理 Trace，用于调试、性能优化和模型效果回放。
 32. 文档级上下文输入，用于在单次 PDF、Excel、图片或文本抽取时补充业务解释。
 33. 字段硬约束失败后的模型修复循环：把原文、上次输出和校验错误重新交给模型修正；二次失败进入 correction_required。
-34. 文档归一化层：所有 PDF、Excel、图片和文本在进入 LLM 前必须先转换成 canonical Markdown，并保留页面、表格、坐标、OCR confidence、parser warning 和来源 hash 等 metadata。
+34. 文档归一化层：对于 PDF，系统必须先截图前几页并把图片直接输入 Document CLS 识别文档类型（Invoice / Contract / Paper/Doc），随后按类型路由到不同归一化流程；对于 Excel、图片和文本，继续走统一归一化入口。所有流程都必须保留来源 hash、warning、trace 和可追溯 metadata。
 
 ### 6.2 当前暂不实现
 
@@ -298,8 +298,8 @@ Tenant Owner 可以：
 6. 用户进入独立的 Samples 页面。
 7. 系统默认提供一个 draft Sample Batch。
 8. 用户在 draft 批次内上传多个样本文档；每个上传文件在表格中形成一行，并可为本次上传输入额外上下文说明。
-9. 系统先执行文档预检和归一化，把原始文件转换成 canonical Markdown 与结构化 metadata。
-10. 系统按当前 Schema、合并后的业务上下文和 normalized Markdown chunks 执行初始抽取。
+9. 系统先执行文档预检；若为 PDF，先截图前几页并将图片输入 Document CLS（候选类型：Invoice、Contract、Paper/Doc）后按类型路由归一化；非 PDF 走标准归一化。
+10. 系统按路由后的归一化结果（如 KV 结构、Markdown chunks 或 reading chunks）、当前 Schema 与合并后的业务上下文执行初始抽取。
 11. 系统对模型输出执行 Schema 与字段硬约束校验。
 12. 如果校验失败，系统把原文、原始提示词、上次输出和校验错误重新交给模型修复；二次仍失败则进入 correction_required。
 13. 用户进入样本详情页查看原始文档预览和字段级抽取结果。
@@ -322,8 +322,8 @@ Tenant Owner 可以：
 1. 用户在 Active Workspace 上传正式文档，或通过 API 创建任务。
 2. 用户可为本次文档输入上下文信息，例如来源系统、业务场景、金额范围、供应商提示或特殊术语。
 3. 系统把 Workspace 业务描述和本次文档上下文合并为模型上下文。
-4. 系统执行文档归一化，生成 normalized Markdown、block metadata、table metadata 和 parser trace。
-5. 系统使用当前 Active Prompt Profile 与 normalized Markdown chunks 执行抽取。
+4. 系统执行文档归一化；PDF 场景先做 Document CLS 再分流：Invoice 走 KV Pipeline，Contract 走 Markdown+LLM，Paper/Doc 走 Reading Pipeline。
+5. 系统使用当前 Active Prompt Profile 与分流后的输入上下文执行抽取（Invoice 输出结构化 JSON；Contract 输出 Summary/QA；Paper/Doc 进入 RAG 读写链路）。
 6. 系统校验输出 JSON 是否符合 Schema 和字段硬约束。
 7. 校验失败时系统触发一次模型修复；修复后仍失败则任务进入 correction_required 或 Incomplete。
 8. 校验通过则任务变为 Completed。
@@ -401,6 +401,28 @@ Schema 表单模式必须支持字段类型、Required 开关、Regex Pattern、
 系统应支持 PDF、Excel、CSV、TXT、JSON、图片等文件归一化。归一化能力必须通过 DocumentNormalizer 接口扩展，不允许业务逻辑直接依赖某一个 parser。抽取文档、Training Example 和 Workspace 背景文件必须进入同一归一化入口，不允许背景文件绕过归一化层直接抽 raw text。
 
 系统必须提供 Workspace-aware Normalizer Registry。Registry 选择 normalizer 时至少能读取 workspace id、schema type、业务描述、处理目的（抽取、背景总结、样本训练等）、文件名和 MIME type；不同 Workspace 可以配置或扩展不同 parser / normalizer / OCR 策略。
+
+PDF 必须执行“先分类、再分流”策略，流程如下：
+
+```text
+             ┌──────────────────┐
+PDF ─────→   │ 前几页截图(PageShots) │
+             └────────┬─────────┘
+                      │
+               ┌──────▼───────┐
+               │ Document CLS │
+               └──────┬───────┘
+                      │
+      ┌───────────────┼───────────────┐
+      │               │               │
+   Invoice         Contract        Paper/Doc
+      │               │               │
+   KV Pipeline    Markdown+LLM    Reading Pipeline
+      │               │               │
+    JSON          Summary/QA         RAG
+```
+
+Document CLS 的输入为 PDF 前几页截图（图片），并在 prompt 中显式告知候选类型：Invoice、Contract、Paper/Doc。分类结果由代码决定后续归一化策略，不由前端人工选择。
 
 归一化输出必须至少包含：
 

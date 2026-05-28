@@ -64,6 +64,13 @@ export const api = {
     ),
   rejectSample: (spaceId: string, versionId: string, sampleId: string) =>
     http.post<Sample>(`/api/schema-spaces/${spaceId}/versions/${versionId}/samples/${sampleId}/reject`),
+  analyzeSample: (spaceId: string, versionId: string, sampleId: string) =>
+    http.post<Sample>(`/api/schema-spaces/${spaceId}/versions/${versionId}/samples/${sampleId}/analyze`),
+  updateSampleExpected: (spaceId: string, versionId: string, sampleId: string, expectedText: string) =>
+    http.post<Sample>(
+      `/api/schema-spaces/${spaceId}/versions/${versionId}/samples/${sampleId}/expected`,
+      { expected_output_text: expectedText },
+    ),
 
   runOptimizer: (spaceId: string, versionId: string, apply: boolean) =>
     http.post<OptimizationReport>(

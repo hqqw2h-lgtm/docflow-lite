@@ -7,6 +7,7 @@ admin observability.
 from __future__ import annotations
 
 import hashlib
+import json
 import time
 from datetime import datetime
 from pathlib import Path
@@ -23,15 +24,18 @@ from ..domain import (
     InvocationStatus,
     LLMPayload,
     NormalizedDocument,
+    SampleStatus,
     Trace,
     TraceSpan,
     TraceSpanType,
     VersionStatus,
 )
-from ..repositories import InvocationRepo, SchemaSpaceRepo, TraceRepo, VersionRepo
+from ..repositories import InvocationRepo, SampleRepo, SchemaSpaceRepo, TraceRepo, VersionRepo
 from ..schema_utils import schema_contract, validate_output
 from .component_resolver import build_llm_payload_for_space, resolve_components, resolve_model_provider
 from .mappers import invocation_from_record, schema_space_from_record, trace_from_record, version_from_record
+
+TRACE_PROMPT_CAPTURE_MAX = 20000
 
 
 class _SpanRecorder:
@@ -41,16 +45,16 @@ class _SpanRecorder:
         self.spans: list[TraceSpan] = []
 
     def record(
-        self,
-        span_type: TraceSpanType | str,
-        *,
-        status: str,
-        input_summary: dict[str, Any] | None = None,
-        output_summary: dict[str, Any] | None = None,
-        duration_ms: int = 0,
-        started_at: datetime | None = None,
-        ended_at: datetime | None = None,
-        error: str = "",
+            self,
+            span_type: TraceSpanType | str,
+            *,
+            status: str,
+            input_summary: dict[str, Any] | None = None,
+            output_summary: dict[str, Any] | None = None,
+            duration_ms: int = 0,
+            started_at: datetime | None = None,
+            ended_at: datetime | None = None,
+            error: str = "",
     ) -> None:
         started = started_at or datetime.utcnow()
         ended = ended_at or started
@@ -70,6 +74,7 @@ class InvocationService:
     def __init__(self) -> None:
         self.space_repo = SchemaSpaceRepo()
         self.version_repo = VersionRepo()
+        self.sample_repo = SampleRepo()
         self.invocation_repo = InvocationRepo()
         self.trace_repo = TraceRepo()
 
@@ -77,7 +82,8 @@ class InvocationService:
     # Public API
     # --------------------------------------------------------------------- #
 
-    def list(self, *, space_id: str = "", version_id: str = "", source: str = "", status: str = "", limit: int = 100) -> list[Invocation]:
+    def list(self, *, space_id: str = "", version_id: str = "", source: str = "", status: str = "", limit: int = 100) -> \
+    list[Invocation]:
         with get_session() as session:
             if space_id:
                 records = self.invocation_repo.list_by_space(
@@ -104,13 +110,14 @@ class InvocationService:
             return trace_from_record(record)
 
     async def invoke_upload(
-        self,
-        *,
-        version_id: str,
-        file: UploadFile,
-        document_context: str,
-        source: InvocationSource,
-        parent_invocation_id: str = "",
+            self,
+            *,
+            version_id: str,
+            file: UploadFile,
+            document_context: str,
+            source: InvocationSource,
+            parent_invocation_id: str = "",
+            current_sample_id: str = "",
     ) -> Invocation:
         with get_session() as session:
             version_record = self.version_repo.get(session, version_id)
@@ -222,6 +229,14 @@ class InvocationService:
             if truncated:
                 body = body[:max_chars] + f"\n\n{truncate_marker}"
             contract = schema_contract(schema_info)
+            fewshot_max_examples = int(effective.processing_policy.get("fewshot_max_examples", 3) or 3)
+            fewshot_examples = self._build_fewshot_examples(
+                session,
+                version_id=version.id,
+                limit=max(fewshot_max_examples, 0),
+                exclude_sample_id=current_sample_id,
+            )
+            fewshot_section = _render_fewshot_section(fewshot_examples)
             if payload.images and not body:
                 document_section = f"## Document\n[{len(payload.images)} image(s) attached — file_type={file_type.value}]\n"
             else:
@@ -231,6 +246,7 @@ class InvocationService:
                 f"## Output Contract\n{contract}\n\n"
                 f"## Extraction Instruction\n{effective.extraction_instruction}\n\n"
                 f"## User Context\n{document_context or '(none)'}\n\n"
+                f"{fewshot_section}"
                 f"{document_section}"
             )
             ctx_end = datetime.utcnow()
@@ -243,11 +259,16 @@ class InvocationService:
                     "payload_source": payload.source,
                     "has_images": bool(payload.images),
                     "max_chars": max_chars,
+                    "fewshot_max_examples": fewshot_max_examples,
                     "processing_policy_source": effective.processing_policy_source,
                     "system_prompt_source": effective.system_prompt_source,
                     "extraction_instruction_source": effective.extraction_instruction_source,
                 },
-                output_summary={"prompt_chars": len(prompt), "truncated": truncated},
+                output_summary={
+                    "prompt_chars": len(prompt),
+                    "truncated": truncated,
+                    "fewshot_examples": len(fewshot_examples),
+                },
                 duration_ms=int((ctx_end - ctx_start).total_seconds() * 1000),
                 started_at=ctx_start,
                 ended_at=ctx_end,
@@ -256,6 +277,7 @@ class InvocationService:
             # ----- model call ----- #
             model_start = datetime.utcnow()
             provider, provider_name, model_name = resolve_model_provider(space, version)
+            prompt_snapshot, prompt_snapshot_truncated = _snapshot_prompt(prompt, TRACE_PROMPT_CAPTURE_MAX)
             invocation_result = await provider.generate_json(prompt, model_name)
             model_end = datetime.utcnow()
             recorder.record(
@@ -265,6 +287,15 @@ class InvocationService:
                     "provider": provider_name,
                     "model": model_name,
                     "prompt_chars": len(prompt),
+                    "prompt_sent": prompt_snapshot,
+                    "prompt_capture_max": TRACE_PROMPT_CAPTURE_MAX,
+                    "prompt_capture_truncated": prompt_snapshot_truncated,
+                    "request_payload": {
+                        "model": model_name,
+                        "prompt": prompt_snapshot,
+                        "prompt_chars": len(prompt),
+                        "prompt_capture_truncated": prompt_snapshot_truncated,
+                    },
                     "provider_source": effective.model_provider_source,
                     "model_source": effective.model_name_source,
                 },
@@ -353,6 +384,39 @@ class InvocationService:
 
             return invocation_from_record(inv_record)
 
+    def _build_fewshot_examples(
+            self,
+            session,
+            *,
+            version_id: str,
+            limit: int,
+            exclude_sample_id: str = "",
+    ) -> list[dict[str, Any]]:
+        if limit <= 0:
+            return []
+        examples: list[dict[str, Any]] = []
+        for sample in self.sample_repo.list_by_version(session, version_id):
+            if sample.status != SampleStatus.CONFIRMED.value:
+                continue
+            if exclude_sample_id and sample.id == exclude_sample_id:
+                continue
+            preferred_output = _pick_preferred_output(
+                sample.corrected_output,
+                sample.expected_output,
+                sample.model_output,
+            )
+            if preferred_output is None:
+                continue
+            examples.append({
+                "sample_id": sample.id,
+                "file_name": sample.file_name,
+                "document_context": sample.document_context or "",
+                "output": preferred_output,
+            })
+            if len(examples) >= limit:
+                break
+        return examples
+
     def _assert_file_type_allowed(self, space, file_name: str) -> FileType:
         detected = FileType.from_filename(file_name)
         if detected is None:
@@ -383,3 +447,58 @@ def _span_to_dict(span: TraceSpan) -> dict[str, Any]:
         "output_summary": span.output_summary,
         "error": span.error,
     }
+
+
+def _has_content(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, tuple, set, dict)):
+        return len(value) > 0
+    return True
+
+
+def _decode_non_empty_json(raw: str) -> Any | None:
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    return parsed if _has_content(parsed) else None
+
+
+def _pick_preferred_output(*raw_candidates: str) -> Any | None:
+    for raw in raw_candidates:
+        decoded = _decode_non_empty_json(raw or "")
+        if decoded is not None:
+            return decoded
+    return None
+
+
+def _render_fewshot_section(examples: list[dict[str, Any]]) -> str:
+    if not examples:
+        return ""
+    sections: list[str] = [
+        "## Confirmed Examples (Few-shot)",
+        "Use the following confirmed outputs as style/structure references.",
+    ]
+    for idx, example in enumerate(examples, start=1):
+        output_json = json.dumps(example["output"], ensure_ascii=False, indent=2)
+        sections.append(
+            f"### Example {idx}\n"
+            f"- file_name: {example['file_name']}\n"
+            f"- user_context: {example['document_context'] or '(none)'}\n"
+            f"- confirmed_output:\n"
+            f"```json\n{output_json}\n```"
+        )
+    return "\n\n".join(sections) + "\n\n"
+
+
+def _snapshot_prompt(prompt: str, max_chars: int) -> tuple[str, bool]:
+    if max_chars <= 0:
+        return "", bool(prompt)
+    if len(prompt) <= max_chars:
+        return prompt, False
+    return prompt[:max_chars], True
