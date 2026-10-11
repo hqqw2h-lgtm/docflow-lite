@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>微电网里的网络弹性法案</title>
+<style>
+  @page { size: 1440px 1960px; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #f4f7fb; }
+  body {
+    width: 1440px;
+    height: 1960px;
+    font-family: "WenQuanYi Micro Hei", "Noto Sans CJK SC", "Droid Sans Fallback", sans-serif;
+    color: #1c2834;
+    padding: 28px 32px 24px;
+  }
+  h1 { font-size: 34px; margin: 0 0 6px; letter-spacing: 0.01em; }
+  .sub { font-size: 16px; color: #3d5166; margin: 0 0 12px; line-height: 1.45; }
+  .warn {
+    background: #fff8e8;
+    border: 1px solid #e4c56a;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 14px;
+    line-height: 1.45;
+    margin-bottom: 14px;
+  }
+  .board {
+    display: grid;
+    grid-template-columns: 1.15fr 0.7fr 1.15fr;
+    gap: 12px;
+    align-items: stretch;
+  }
+  .col {
+    background: #fff;
+    border-radius: 14px;
+    padding: 14px;
+    border: 1px solid #d5e0ea;
+  }
+  .col h2 { margin: 0 0 8px; font-size: 20px; }
+  .tag {
+    display: inline-block;
+    font-size: 12px;
+    border-radius: 999px;
+    padding: 2px 8px;
+    margin-bottom: 6px;
+    font-weight: 700;
+  }
+  .device { background: #e7f6f2; color: #0f6e62; }
+  .cloud { background: #e7f0fb; color: #1d4e89; }
+  .mid { background: #f3f0ff; color: #5340a0; }
+  .card {
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin: 0 0 8px;
+    font-size: 13.5px;
+    line-height: 1.4;
+  }
+  .card b { display: block; font-size: 15px; margin-bottom: 2px; }
+  .c-dev { background: #f3fbf8; border: 1px solid #b7e0d6; }
+  .c-imp { background: #fff6ea; border: 1px solid #f0c48a; }
+  .c-crit { background: #fdeeee; border: 1px solid #e7b4b4; }
+  .c-foss { background: #f4f7e8; border: 1px solid #c9d59a; }
+  .c-rdps { background: #eef5ff; border: 1px solid #b9d0f0; }
+  .c-out { background: #f6f7f8; border: 1px solid #d5d8dd; }
+  .arrow {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+  }
+  .rule {
+    background: #fff;
+    border: 1px dashed #8d7cc9;
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 13.5px;
+    line-height: 1.4;
+  }
+  .life {
+    margin-top: 12px;
+    background: #fff;
+    border: 1px solid #d5e0ea;
+    border-radius: 14px;
+    padding: 12px 14px;
+  }
+  .life h2 { margin: 0 0 8px; font-size: 20px; }
+  .steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .step {
+    background: #f7fafc;
+    border-radius: 10px;
+    padding: 8px;
+    font-size: 13px;
+    line-height: 1.4;
+    border-top: 4px solid #2b6cb0;
+  }
+  .step b { display: block; font-size: 14px; margin-bottom: 3px; }
+  .foot { margin-top: 10px; font-size: 12.5px; color: #526273; line-height: 1.4; }
+</style>
+</head>
+<body>
+  <h1>用一套微电网看《网络弹性法案》管到哪里</h1>
+  <p class="sub">条例 (EU) 2024/2847。下面是说明性例子，不是委员会指南里的官方案例。产品叫什么不决定类别，核心功能是否符合附件 III、附件 IV 以及实施条例 (EU) 2025/2392 的技术描述才决定。</p>
+  <div class="warn">图中的逆变器、防火墙、电表和云平台都是为了把规则放进同一场景。某一件真实设备是否属于重要产品或关键产品，必须按其自己的核心功能逐案判断。本图不增加条例没有的义务。</div>
+  <div class="board">
+    <section class="col">
+      <h2><span class="tag device">设备端</span> 现场的含数字元素产品</h2>
+      <div class="card c-dev">
+        <b>逆变器 + 必须配套的控制软件</b>
+        硬件和为实现预期功能所必需、由同一制造商提供的软件，构成一个产品，即使软件稍后才下载。核心功能若是功率变换，仅仅装有微控制器，并不使整机成为“微控制器”类重要产品。
+      </div>
+      <div class="card c-imp">
+        <b>现场防火墙</b>
+        只有核心功能是防火墙或入侵检测与防御时，才属于附件 III 的 II 类重要产品，合格评定要有第三方。若只是逆变器里的一项辅助功能，类别仍看整机的核心功能。
+      </div>
+      <div class="card c-crit">
+        <b>电表相关设备</b>
+        附件 IV 里的关键产品包括：指令 (EU) 2019/944 第2条第23款所称智能计量系统中的智能电表网关，以及其他用于高级安全目的的设备。普通电能表不能因为装在微电网里就直接叫成关键产品。
+      </div>
+      <div class="card c-foss">
+        <b>网关固件里的开源通信库</b>
+        未在商业活动中投放市场的，开发者通常没有制造商义务。法人管理者适用第24条；在其参与开发的范围内，第24条第3款还会有条件地带上第14条的报告义务。集成它的微电网制造商要按第13条第5款做尽职调查。
+      </div>
+      <div class="card c-dev">
+        <b>备件与修理</b>
+        按相同规格制造、用于替换相同组件、并专门作为备件供应的部件，可适用第2条第6款。指南中的例子：密码实现不同且安全启动也更新、因而影响网络安全属性的芯片，不视为相同备件。
+      </div>
+    </section>
+    <section class="arrow">
+      <div class="rule"><b>先问是否落入范围</b><br />在欧盟市场上提供，且预期用途或可合理预见的使用包括与设备或网络的数据连接。完全不交换数据的机械开关，不在范围内。</div>
+      <div class="rule"><b>再问云是不是远程数据处理解决方案</b><br />三个条件同时满足：在远程进行；没有它，产品就不能履行某一功能；软件由制造商或在其责任下设计和开发。</div>
+      <div class="rule"><b>再问核心功能属于哪一类</b><br />默认类别可用模块 A 自我评定。I 类重要产品，只有在完整适用已公布引用的协调标准、通用规范，或保证等级至少为“较高”（substantial）、且经第27条第9款指明的欧洲网络安全认证计划，并覆盖相关基本要求时，才可以不请第三方。II 类和关键产品要第三方。已投放市场的 I 类或 II 类自由及开源软件，若投放时向公众提供技术文件，可按第32条第5款走默认程序。</div>
+      <div class="rule"><b>蜂窝网只是信道</b><br />产品要能连上网络，但网络本身不是“没有它就无法履行功能”的数据处理，不构成远程数据处理解决方案。</div>
+    </section>
+    <section class="col">
+      <h2><span class="tag cloud">云端</span> 哪些算进产品，哪些只是依赖</h2>
+      <div class="card c-rdps">
+        <b>制造商的能量管理软件</b>
+        在云上运行，由制造商设计和开发，用来接收现场设定并下发控制。没有它，逆变器就不能履行这项远程功能。这是远程数据处理解决方案，要纳入产品整体的风险评估和附件 I 基本要求。底层机房由第三方提供，也不改变这一点。
+      </div>
+      <div class="card c-out">
+        <b>第三方基础设施（IaaS）</b>
+        不是制造商开发的软件，不是远程数据处理解决方案。制造商仍须在风险评估中处理由此产生的风险，并在产品侧采取控制、对提供者做尽职调查。
+      </div>
+      <div class="card c-out">
+        <b>第三方天气预报服务</b>
+        同样不是远程数据处理解决方案。微电网软件依赖它时，按外部组件或依赖项处理：认证、加密、通信完整性，以及选择提供者时的尽职调查。
+      </div>
+      <div class="card c-out">
+        <b>只刊登说明书的网站</b>
+        不是含数字元素产品，也不是远程数据处理解决方案。若网站实际签发产品运行所必需的凭证，并且定义的其余条件也满足，才可能变成远程数据处理解决方案。
+      </div>
+      <div class="card c-out">
+        <b>制造商的人事、工资、客户关系系统</b>
+        序言第11项：要求覆盖的是使数据处理得以执行的软件，不是整个组织的信息技术基础设施。
+      </div>
+    </section>
+  </div>
+  <section class="life">
+    <h2>产品投放市场之后，同一套设备还要走完这些义务</h2>
+    <div class="steps">
+      <div class="step"><b>1 风险评估</b>第13条第2款。覆盖产品整体、集成组件和外部依赖。协调标准带来的符合性推定，只及于该标准覆盖的基本要求，不自动盖住辅助功能的额外风险。</div>
+      <div class="step"><b>2 数据保护</b>附件 I：在风险评估基础上，保护所存储、传输或处理数据的保密性和完整性，例如对相关数据采用符合当前技术水平的加密；只处理与预期用途相当且必要的数据；用户能安全地永久删除数据和设置。条例不规定存在哪一座城市、用哪一种数据库、保存多少年。个人数据的合法处理仍由《通用数据保护条例》规定。</div>
+      <div class="step"><b>3 支持期</b>按第13条第8款，对照产品的预期使用时间来定。实质性修改若没有改变决定使用时间的因素，支持期与剩余的预期使用时间相一致。</div>
+      <div class="step"><b>4 漏洞与报告</b>支持期内处理和修补漏洞，向上游报告所集成组件中的漏洞并分享自己开发的安全修复。自2026年9月11日起，知悉后24小时内向协调计算机安全事件响应小组和欧盟网络安全局发预警，72小时内通知。积极利用的漏洞，在纠正或缓解措施可用后14日内交最终报告；严重事件在72小时通知后一个月内交最终报告。报告义务在支持期结束后仍然存在。</div>
+      <div class="step"><b>5 修改与边界</b>只降低风险、不改变预期用途、不引入新风险的安全更新，一般不是实质性修改。改变用途或引入新风险的更新，可能是。他人做了实质性修改并在市场上提供的，该人被视为制造商。专为条例 (EU) 2019/2144 或 (EU) No 168/2013 所涵盖车辆设计和制造的部件，不属本法；拿到汽车供应链以外销售的通用部件则属本法。</div>
+    </div>
+  </section>
+  <p class="foot">日期：2024年12月10日生效；第四章自2026年6月11日起适用；第14条报告自2026年9月11日起适用；2027年12月11日起全部适用。执法是成员国市场监督机构。委员会指南没有约束力。权威解释只能由欧洲联盟法院作出。本图已按两名独立审阅的意见改过：单纯集成重要组件的明文排除写在第7条第1款，指南把同一逻辑延伸到关键产品；开源管理者并不“只受第24条”；第32条第5款的开源例外还要求投放市场时公开技术文件；备件是否“相同”要看规格和网络安全属性，不能只因为密码实现不同就自动下结论。</p>
+</body>
+</html>
